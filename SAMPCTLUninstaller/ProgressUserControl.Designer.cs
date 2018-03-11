@@ -105,6 +105,7 @@
             this.uninstallationProgressBar.MarqueeAnimationSpeed = 10;
             this.uninstallationProgressBar.Name = "uninstallationProgressBar";
             this.uninstallationProgressBar.Size = new System.Drawing.Size(730, 14);
+            this.uninstallationProgressBar.Step = 1;
             this.uninstallationProgressBar.Style = System.Windows.Forms.ProgressBarStyle.Marquee;
             this.uninstallationProgressBar.TabIndex = 0;
             // 

@@ -12,4 +12,4 @@
 
 ## Links
 - [sampctl Website](http://sampctl.com/)
-- [sampctl GitHub](https://github.com/Southclaws/sampctl)
+- [sampctl GitHub Page](https://github.com/Southclaws/sampctl)

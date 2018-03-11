@@ -91,6 +91,7 @@
             this.installationProgressBar.MarqueeAnimationSpeed = 10;
             this.installationProgressBar.Name = "installationProgressBar";
             this.installationProgressBar.Size = new System.Drawing.Size(730, 14);
+            this.installationProgressBar.Step = 1;
             this.installationProgressBar.Style = System.Windows.Forms.ProgressBarStyle.Marquee;
             this.installationProgressBar.TabIndex = 0;
             // 
