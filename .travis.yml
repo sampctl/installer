@@ -1,0 +1,9 @@
+language: csharp
+solution: ./SAMPCTLInstaller.sln
+
+install:
+  - sudo apt-get install nunit-console
+  - nuget restore ./SAMPCTLInstaller.sln
+
+script:
+  - xbuild ./SAMPCTLInstaller.sln
