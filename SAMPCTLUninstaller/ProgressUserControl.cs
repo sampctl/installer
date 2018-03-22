@@ -18,7 +18,7 @@ namespace SAMPCTLUninstaller
         /// <summary>
         /// Uninstallation has been finished
         /// </summary>
-        private bool uninstallationFinished = false;
+        private bool uninstallationFinished;
 
         /// <summary>
         /// Error messages
@@ -98,11 +98,12 @@ namespace SAMPCTLUninstaller
                 WriteLine("Getting registry entry...");
                 using (RegistryKey uninstall_key = Registry.LocalMachine.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", true))
                 {
+                    string destination_directory = null;
                     try
                     {
                         using (RegistryKey app_key = uninstall_key.OpenSubKey("sampctl"))
                         {
-                            string destination_directory = app_key.GetValue("InstallLocation").ToString();
+                            destination_directory = app_key.GetValue("InstallLocation").ToString();
                             Directory.Delete(destination_directory, true);
                         }
                     }
@@ -111,6 +112,41 @@ namespace SAMPCTLUninstaller
                         Console.Error.WriteLine(e.Message);
                     }
                     uninstall_key.DeleteSubKey("sampctl");
+                    if (destination_directory != null)
+                    {
+                        try
+                        {
+                            WriteLine("Modifying %PATH% environment variable...");
+                            string[] env_var_vals = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine).Split(';');
+                            StringBuilder env_var_val = new StringBuilder();
+                            string low_destination_directory = destination_directory.Trim('\\').Trim('/').ToLower();
+                            bool first = true;
+                            foreach (string val in env_var_vals)
+                            {
+                                if (val.Length > 0)
+                                {
+                                    if (val.Trim('\\').Trim('/').ToLower() != low_destination_directory)
+                                    {
+                                        if (first)
+                                        {
+                                            first = false;
+                                        }
+                                        else
+                                        {
+                                            env_var_val.Append(";");
+                                        }
+                                        env_var_val.Append(val);
+                                    }
+                                }
+                            }
+                            Environment.SetEnvironmentVariable("PATH", env_var_val.ToString(), EnvironmentVariableTarget.Machine);
+                            WriteLine("%PATH% environment variable has been successfully modified!");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
+                        }
+                    }
                     try
                     {
                         ProcessStartInfo psi = new ProcessStartInfo();

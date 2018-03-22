@@ -1,7 +1,6 @@
 ﻿using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using Microsoft.Win32;
-using SAMPCTLInstaller.Properties;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -25,7 +24,7 @@ namespace SAMPCTLInstaller
         /// <summary>
         /// Installation has finished
         /// </summary>
-        private bool installationFinished = false;
+        private bool installationFinished;
 
         /// <summary>
         /// Error messages
@@ -250,6 +249,21 @@ namespace SAMPCTLInstaller
                                                 using (FileStream file_stream = File.Open(destination_path, FileMode.Create))
                                                 {
                                                     tar_stream.CopyEntryContents(file_stream);
+                                                    try
+                                                    {
+                                                        WriteLine("Modifying %PATH% environment variable...");
+                                                        string env_var_val = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine);
+                                                        if ((!(string.IsNullOrEmpty(env_var_val))) && (!(env_var_val.EndsWith(";"))))
+                                                        {
+                                                            env_var_val += ';';
+                                                        }
+                                                        Environment.SetEnvironmentVariable("PATH", env_var_val + destination_directory, EnvironmentVariableTarget.Machine);
+                                                        WriteLine("%PATH% environment variable has been successfully modified!");
+                                                    }
+                                                    catch (Exception ex)
+                                                    {
+                                                        Console.Error.WriteLine(ex.Message);
+                                                    }
                                                     WriteLine("Writing data to registry...");
                                                     using (RegistryKey uninstall_key = Registry.LocalMachine.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", true))
                                                     {
