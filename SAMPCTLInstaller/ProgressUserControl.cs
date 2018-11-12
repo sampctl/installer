@@ -47,6 +47,16 @@ namespace SAMPCTLInstaller
         private GitHubReleaseAssetDataContract releaseAsset;
 
         /// <summary>
+        /// Uninstall registry key
+        /// </summary>
+        private static readonly string uninstallRegistryKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+
+        /// <summary>
+        /// sampctl registry sub key
+        /// </summary>
+        private static readonly string sampctlRegistrySubKey = "sampctl";
+
+        /// <summary>
         /// Can go back
         /// </summary>
         public bool CanGoBack
@@ -67,7 +77,7 @@ namespace SAMPCTLInstaller
                 return installationFinished;
             }
         }
-        
+
         /// <summary>
         /// Default constructor
         /// </summary>
@@ -224,74 +234,158 @@ namespace SAMPCTLInstaller
                     string destination_path = Path.Combine(destination_directory, SAMPCTLProvider.SAMPCTLFileName);
                     if (File.Exists(downloadPath))
                     {
-                        WriteLine("Unpacking \"" + downloadPath + "\" content to \"" + destination_path + "\"...");
-                        using (FileStream archive_file_stream = File.Open(downloadPath, FileMode.Open))
+                        try
                         {
-                            using (GZipInputStream gzip_stream = new GZipInputStream(archive_file_stream))
+                            WriteLine("Deleting existing binaries and registry entries...");
+                            using (RegistryKey uninstall_key = Registry.LocalMachine.OpenSubKey(uninstallRegistryKey, true))
                             {
-                                using (TarInputStream tar_stream = new TarInputStream(gzip_stream))
+                                foreach (string sub_key in uninstall_key.GetSubKeyNames())
                                 {
-                                    TarEntry tar_entry;
-                                    while ((tar_entry = tar_stream.GetNextEntry()) != null)
+                                    if (sub_key == sampctlRegistrySubKey)
                                     {
-                                        if (!(tar_entry.IsDirectory))
+                                        using (RegistryKey app_key = uninstall_key.OpenSubKey(sampctlRegistrySubKey))
                                         {
-                                            if (tar_entry.Name == SAMPCTLProvider.SAMPCTLFileName)
+                                            object install_location_obj = app_key.GetValue("InstallLocation");
+                                            if (install_location_obj != null)
                                             {
-                                                if (File.Exists(destination_path))
+                                                string install_location = install_location_obj.ToString();
+                                                try
                                                 {
-                                                    File.Delete(destination_path);
-                                                }
-                                                else if (!(Directory.Exists(destination_directory)))
-                                                {
-                                                    Directory.CreateDirectory(destination_directory);
-                                                }
-                                                using (FileStream file_stream = File.Open(destination_path, FileMode.Create))
-                                                {
-                                                    tar_stream.CopyEntryContents(file_stream);
-                                                    try
+                                                    if (Directory.Exists(install_location))
                                                     {
-                                                        WriteLine("Modifying %PATH% environment variable...");
-                                                        string env_var_val = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine);
-                                                        if ((!(string.IsNullOrEmpty(env_var_val))) && (!(env_var_val.EndsWith(";"))))
-                                                        {
-                                                            env_var_val += ';';
-                                                        }
-                                                        Environment.SetEnvironmentVariable("PATH", env_var_val + destination_directory, EnvironmentVariableTarget.Machine);
-                                                        WriteLine("%PATH% environment variable has been successfully modified!");
-                                                    }
-                                                    catch (Exception ex)
-                                                    {
-                                                        Console.Error.WriteLine(ex.Message);
-                                                    }
-                                                    WriteLine("Writing data to registry...");
-                                                    using (RegistryKey uninstall_key = Registry.LocalMachine.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", true))
-                                                    {
-                                                        using (RegistryKey app_key = uninstall_key.CreateSubKey("sampctl"))
-                                                        {
-                                                            GitHubLatestReleaseDataContract latest_release = SAMPCTLProvider.LatestRelease;
-                                                            app_key.SetValue("DisplayName", "sampctl " + latest_release.Name);
-                                                            app_key.SetValue("DisplayIcon", Path.Combine(destination_directory, "sampctl.ico"));
-                                                            app_key.SetValue("Publisher", releaseAsset.Uploader.Login);
-                                                            app_key.SetValue("DisplayVersion", latest_release.TagName);
-                                                            app_key.SetValue("URLInfoAbout", SAMPCTLProvider.WebsiteURI);
-                                                            app_key.SetValue("Contact", "southclaws@gmail.com");
-                                                            app_key.SetValue("InstallLocation", destination_directory);
-                                                            app_key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
-                                                            app_key.SetValue("UninstallString", Path.Combine(destination_directory, "SAMPCTLUninstaller.exe"));
-                                                            ExportResource("SAMPCTLInstaller.sampctl.ico", Path.Combine(destination_directory, "sampctl.ico"));
-                                                            ExportResource("SAMPCTLInstaller.SAMPCTLUninstaller.exe", Path.Combine(destination_directory, "SAMPCTLUninstaller.exe"));
-                                                            WriteLine("Installation has been finished!");
-                                                            failure = false;
-                                                        }
+                                                        Directory.Delete(install_location, true);
                                                     }
                                                 }
-                                                break;
+                                                catch (Exception ex)
+                                                {
+                                                    Console.Error.WriteLine(ex.Message);
+                                                }
+                                            }
+                                        }
+                                        uninstall_key.DeleteSubKey(sampctlRegistrySubKey);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
+                        }
+                        try
+                        {
+                            WriteLine("Modifying %PATH% environment variable...");
+                            string[] env_var_vals = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine).Split(';');
+                            StringBuilder env_var_val = new StringBuilder();
+                            string low_destination_directory = destination_directory.Trim('\\').Trim('/').ToLower();
+                            bool first = true;
+                            foreach (string val in env_var_vals)
+                            {
+                                if (val.Length > 0)
+                                {
+                                    if (val.Trim('\\').Trim('/').ToLower() != low_destination_directory)
+                                    {
+                                        if (first)
+                                        {
+                                            first = false;
+                                        }
+                                        else
+                                        {
+                                            env_var_val.Append(";");
+                                        }
+                                        env_var_val.Append(val);
+                                    }
+                                }
+                            }
+                            Environment.SetEnvironmentVariable("PATH", env_var_val.ToString(), EnvironmentVariableTarget.Machine);
+                            WriteLine("%PATH% environment variable has been successfully modified!");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
+                        }
+                        try
+                        {
+                            WriteLine("Unpacking \"" + downloadPath + "\" content to \"" + destination_path + "\"...");
+                            using (FileStream archive_file_stream = File.Open(downloadPath, FileMode.Open))
+                            {
+                                using (GZipInputStream gzip_stream = new GZipInputStream(archive_file_stream))
+                                {
+                                    using (TarInputStream tar_stream = new TarInputStream(gzip_stream))
+                                    {
+                                        TarEntry tar_entry;
+                                        while ((tar_entry = tar_stream.GetNextEntry()) != null)
+                                        {
+                                            if (!(tar_entry.IsDirectory))
+                                            {
+                                                if (tar_entry.Name == SAMPCTLProvider.SAMPCTLFileName)
+                                                {
+                                                    if (File.Exists(destination_path))
+                                                    {
+                                                        File.Delete(destination_path);
+                                                    }
+                                                    else if (!(Directory.Exists(destination_directory)))
+                                                    {
+                                                        Directory.CreateDirectory(destination_directory);
+                                                    }
+                                                    using (FileStream file_stream = File.Open(destination_path, FileMode.Create))
+                                                    {
+                                                        tar_stream.CopyEntryContents(file_stream);
+                                                    }
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+                            try
+                            {
+                                WriteLine("Modifying %PATH% environment variable...");
+                                string env_var_val = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine);
+                                if ((!(string.IsNullOrEmpty(env_var_val))) && (!(env_var_val.EndsWith(";"))))
+                                {
+                                    env_var_val += ';';
+                                }
+                                Environment.SetEnvironmentVariable("PATH", env_var_val + destination_directory, EnvironmentVariableTarget.Machine);
+                                WriteLine("%PATH% environment variable has been successfully modified!");
+                                try
+                                {
+                                    WriteLine("Writing data to registry...");
+                                    using (RegistryKey uninstall_key = Registry.LocalMachine.OpenSubKey(uninstallRegistryKey, true))
+                                    {
+                                        using (RegistryKey app_key = uninstall_key.CreateSubKey(sampctlRegistrySubKey))
+                                        {
+                                            GitHubLatestReleaseDataContract latest_release = SAMPCTLProvider.LatestRelease;
+                                            app_key.SetValue("DisplayName", "sampctl " + latest_release.Name);
+                                            app_key.SetValue("DisplayIcon", Path.Combine(destination_directory, "sampctl.ico"));
+                                            app_key.SetValue("Publisher", releaseAsset.Uploader.Login);
+                                            app_key.SetValue("DisplayVersion", latest_release.TagName);
+                                            app_key.SetValue("URLInfoAbout", SAMPCTLProvider.WebsiteURI);
+                                            app_key.SetValue("Contact", "southclaws@gmail.com");
+                                            app_key.SetValue("InstallLocation", destination_directory);
+                                            app_key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
+                                            app_key.SetValue("UninstallString", Path.Combine(destination_directory, "SAMPCTLUninstaller.exe"));
+                                            ExportResource("SAMPCTLInstaller.sampctl.ico", Path.Combine(destination_directory, "sampctl.ico"));
+                                            ExportResource("SAMPCTLInstaller.SAMPCTLUninstaller.exe", Path.Combine(destination_directory, "SAMPCTLUninstaller.exe"));
+                                            WriteLine("Installation has been finished!");
+                                            failure = false;
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.Error.WriteLine(ex.Message);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine(ex.Message);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
                         }
                         try
                         {
@@ -304,7 +398,7 @@ namespace SAMPCTLInstaller
                     }
                     if (failure)
                     {
-                        SetError("sampctl can't be unpacked");
+                        SetError("sampctl installation has failed");
                     }
                 }
                 catch (Exception ex)
