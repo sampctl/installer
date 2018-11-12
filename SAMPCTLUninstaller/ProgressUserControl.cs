@@ -103,8 +103,12 @@ namespace SAMPCTLUninstaller
                     {
                         using (RegistryKey app_key = uninstall_key.OpenSubKey("sampctl"))
                         {
-                            destination_directory = app_key.GetValue("InstallLocation").ToString();
-                            Directory.Delete(destination_directory, true);
+                            object destination_directory_obj = app_key.GetValue("InstallLocation");
+                            if (destination_directory_obj != null)
+                            {
+                                destination_directory = destination_directory_obj.ToString();
+                                Directory.Delete(destination_directory, true);
+                            }
                         }
                     }
                     catch (Exception e)
